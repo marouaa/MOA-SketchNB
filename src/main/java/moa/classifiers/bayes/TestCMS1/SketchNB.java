@@ -32,15 +32,18 @@ import java.util.HashMap;
 deals with nominal attribute values, stream LED
 */
 
-public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClassifier {
+public class SketchNB extends AbstractClassifier implements MultiClassClassifier {
 
    
 	private static final long serialVersionUID = 1L;
 
-        
-          public IntOption streamSize = new IntOption("Streamsize", 
+        public IntOption streamsize = new IntOption("Strsize", 
                   'N', 
-                  "Size", 100000) ;
+                  "size", 10000) ;
+        
+         public IntOption cons = new IntOption("Constant", 
+                  'C', 
+                  "constant", 1000) ;
           
 	public FloatOption deltaOption = new FloatOption("deltaFraction",
 			'd',
@@ -51,7 +54,7 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
 			'e',
 			"epsilon.",
 			0.01, 0.0, 1.0);
-      
+
 	@SuppressWarnings("hiding")
 	public static final String classifierPurposeString = "Naive Bayes classifier: performs classic bayesian prediction while making naive assumption that all inputs are independent.";
 
@@ -68,7 +71,7 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
 	private final int NUMVALUESATTRIBUTE = 5;
 
 	protected CountMinSketch1 cmsketch; 
-	protected HashMap <String, Integer> list;
+//	protected HashMap <String, Integer> list;
        
         protected double error;
         protected int NumAtt ;
@@ -92,16 +95,20 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
                          this.error = 0.0;
                          this.numClasses = inst.numClasses();
                          this.NumAtt = inst.numAttributes()-1;
-                         this.list = new HashMap<>();
-			this.cmsketch = new CountMinSketch1((1.0-Math.pow(1.0-this.deltaOption.getValue(), 1.0/((double)this.NumAtt*(double)this.numClasses))) ,
-                               ((Math.pow((double)this.NumAtt*this.streamSize.getValue()*this.epsilonOption.getValue()+1.0, 1.0/(double)this.NumAtt)-1.0)/((double)this.NumAtt*this.streamSize.getValue())));
-                        System.out.println(this.cmsketch.getDepth());
-                        System.out.println(this.cmsketch.getWidth());
+                        // this.list = new HashMap<>();
+                         int depth = (int) (Math.log(1/(1.0-Math.pow((double)1.0-this.deltaOption.getValue(), (double)1.0/this.NumAtt*this.numClasses)))+Math.log(this.cons.getValue()));
+                         int wid = (int) (Math.exp(1.0)*this.NumAtt*this.streamsize.getValue()/(this.cons.getValue()*(Math.pow((double)this.NumAtt*(double)this.streamsize.getValue()*this.epsilonOption.getValue()+1, 1.0/(double)this.NumAtt)-1)));
+                         this.cmsketch = new CountMinSketch1(wid,depth);
+			//this.cmsketch = new CountMinSketch1((int)(Math.exp(1.0)*this.NumAtt*this.streamsize.getValue()/(this.cons.getValue()*(Math.pow(this.NumAtt*this.epsilonOption.getValue()*this.streamsize.getValue()+1,1/this.NumAtt)-1))),
+                          //      (int)(Math.log(1/(1.0-
+                           //   Math.pow(1.0-this.deltaOption.getValue(), 1/(this.NumAtt*this.numClasses))))+Math.log(this.cons.getValue())));
+                        System.out.println(depth);
+                        System.out.println(wid);  
 		}
                 this.observedClassDistribution[(int) inst.classValue()] += inst.weight();
 		this.observedClassSum +=inst.weight();
-              //System.out.println(this.NumAtt);
-                //System.out.println(this.NumAtt);
+             //System.out.println(this.NumAtt);
+               //System.out.println(this.numClasses);
 		for (int i = 0; i < inst.numAttributes() - 1; i++) {
 			//int instAttIndex = modelAttIndexToInstanceAttIndex(i, inst);
 			//this.attributeObservers[i][(int)inst.classValue()][(int)inst.value(i)] +=inst.weight();
@@ -111,13 +118,14 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
 			this.cmsketch.setString(updateS); 
                         
 			this.attributeObserversSum[i][(int)inst.classValue()] +=inst.weight();
-                        if (!this.list.containsKey(updateS))
+                      /*  if (!this.list.containsKey(updateS))
                              this.list.put(updateS, 1);
                         else {
                              Integer val = this.list.get(updateS);
                              this.list.put(updateS, (val+1));
               
-          } 
+          }
+                        */
 		}
 	}
                 
@@ -163,7 +171,7 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
 				votes[classIndex] *= ((double) cmsketch.getEstimatedCount(chaine))
                                                     /this.attributeObserversSum[attIndex][classIndex];
 						//this.attributeObservers[attIndex][classIndex][(int)inst.value(attIndex)]
-				 int count = (int) this.cmsketch.getEstimatedCount(chaine);	
+			/*	 int count = (int) this.cmsketch.getEstimatedCount(chaine);	
                                  Integer countlst;
                                      if (!list.containsKey(chaine)) 
                                          countlst= 0;
@@ -173,6 +181,7 @@ public class CMNaiveBayes1 extends AbstractClassifier implements MultiClassClass
                                    this.error+= Math.abs((double)count - countlst.doubleValue());
                                  //  System.out.println("ici c'est sketch"+count);
                                   // System.out.println("ici c'est liste"+countlst);
+                                  */
 				}
                         
                     //     System.out.println(this.observedClassSum);

@@ -23,17 +23,20 @@ import CMSForTestNumericNB.CountMinSketch1;
 import com.github.javacliparser.FloatOption;
 import com.github.javacliparser.IntOption;
 import moa.classifiers.core.attributeclassobservers.AttributeClassObserver;
+import moa.classifiers.core.attributeclassobservers.GaussianNumericAttributeClassObserver;
 import moa.classifiers.AbstractClassifier;
 import moa.classifiers.MultiClassClassifier;
 import moa.core.Measurement;
 import com.yahoo.labs.samoa.instances.Instance;
+import moa.classifiers.core.driftdetection.ADWIN;
 import moa.core.AutoExpandVector;
-import moa.core.GaussianEstimator1;
+import moa.core.Utils;
+
 /*
 deals with nominal and numeric attribute values
 */
 
-public  class Version2 extends AbstractClassifier implements MultiClassClassifier {
+public  class AdaptiveSketchNB extends AbstractClassifier implements MultiClassClassifier {
 
    
 	private static final long serialVersionUID = 1L;
@@ -72,10 +75,11 @@ public  class Version2 extends AbstractClassifier implements MultiClassClassifie
         protected CountMinSketch1 cmsketch; 
         
         protected int NumAtt ;
+       
+        protected ADWIN AdwinErr;
         
         public boolean ErrorChange = false;
         
-        public static final double NORMAL_CONSTANT = Math.sqrt(2 * Math.PI);
        
         protected AutoExpandVector<AttributeClassObserver> attributeObservers;
 	@Override
@@ -97,17 +101,13 @@ public  class Version2 extends AbstractClassifier implements MultiClassClassifie
 			 this.observedClassSum  = 0.0;
 			 this.start = false;
                          this.attributeObservers = new AutoExpandVector<AttributeClassObserver>();
-                         //this.numClasses = inst.numClasses();
-                         //this.NumAtt = inst.numAttributes()-1;
-                         //int depth = (int) (Math.log(1/(1.0-Math.pow((double)1.0-this.deltaOption.getValue(), (double)1.0/this.NumAtt*this.numClasses)))+Math.log(this.cons.getValue()));
-                         //int wid = (int) (Math.exp(1.0)*this.NumAtt*this.streamsize.getValue()/(this.cons.getValue()*(Math.pow((double)this.NumAtt*(double)this.streamsize.getValue()*this.epsilonOption.getValue()+1, 1.0/(double)this.NumAtt)-1)));
                          this.cmsketch = new CountMinSketch1(wid,depth);
 			
-                         System.out.println(depth);
-                         System.out.println(wid);  
+ 
 		}
                 this.observedClassDistribution[(int) inst.classValue()] += inst.weight();
 		this.observedClassSum +=inst.weight();
+             
 
                           
                 for (int i = 0; i < inst.numAttributes() - 1; i++) {
@@ -118,67 +118,59 @@ public  class Version2 extends AbstractClassifier implements MultiClassClassifie
 			this.cmsketch.setString(updateS,inst.weight());
                     }
                     else {
-                      
-                        String updateMean = Integer.toString(i) + Double.toString(inst.classValue()) + "mean";
-                        String updateVar = Integer.toString(i) + Double.toString(inst.classValue()) + "var";
-                        double lmean = this.cmsketch.getEstimatedCount(updateMean);
-                        double lvar = this.cmsketch.getEstimatedCount(updateVar);
-                          GaussianEstimator1 estim = new GaussianEstimator1();
-                        estim.addObservation(inst.value(i), inst.weight(), this.observedClassSum, lmean, lvar);
-                       
-                       // double newmean =  computeMean(inst.value(i), lmean, this.observedClassSum); 
-                        this.cmsketch.setString1(updateMean, estim.getMean());
-                        this.cmsketch.setString1(updateVar, estim.getVarSum());
-                        //System.out.println(obs.getBestSuggestion());
+                        AttributeClassObserver obs = this.attributeObservers.get(i);
+                        if (obs == null) {
+                        obs = new GaussianNumericAttributeClassObserver();
+                        this.attributeObservers.set(i, obs);
+                        }
+                        obs.observeAttributeClass(inst.value(i), (int) inst.classValue(), inst.weight());
                     }  
                     
                 this.attributeObserversSum[i][(int)inst.classValue()] +=inst.weight();
                         
                 } 
-  
+                
+                
+                int trueClass = (int) inst.classValue();
+                int ClassPrediction = Utils.maxIndex(this.getVotesForInstance(inst));
+                boolean Correct = (trueClass == ClassPrediction);
+                if (this.AdwinErr == null) {
+                    this.AdwinErr = new ADWIN();
+                }
+             //   System.out.println(this.ErrorChange);
+                double oldError = this.getErrorEstimation();
+                this.ErrorChange = this.AdwinErr.setInput(Correct == true ? 0.0 : 1.0);
+                if (this.ErrorChange == true && oldError > this.getErrorEstimation()) {
+                 //   System.out.println("No change is detected");
+                    this.ErrorChange = false;
+                }
+                
+                if (this.ErrorChange == true) {
+                //reset ?   
+                    //System.out.println("a change is detected");
+                    this.cmsketch = new CountMinSketch1(wid,depth);
+                    this.attributeObservers.clear();
+                } 
                 
 	}
 	
-           protected double computeMean(double val, double lmean, double numbInst) {
-            //this.mean = lmean + (val-lmean)/numbInst;
-        return  lmean + (val-lmean)/numbInst;
-        }
-        
-        protected double computeVar(double val,double lvar,double lmean, double nmean) {
-            
-            //double var = lvar +  (val-lmean)*(val - this.Means.get(ident));
-        return lvar + (val-lmean)*(val - nmean);
-        }
-    
 
-        public double getVariance( double var) {
-        return this.observedClassSum > 1.0 ? var/(this.observedClassSum - 1.0)
-                : 0.0;
-        }
-        
-
-        public double getStdDev(double v) {
-        return Math.sqrt(getVariance(v));
-        } 
-        protected double computeProb(double val, double mean, double var) {
-          if (this.observedClassSum > 0.0){
-            double stdDev =  getStdDev(var);
-            if (stdDev > 0.0) {
-                double diff = val - mean;
-                return (1.0 / (NORMAL_CONSTANT * stdDev))
-                        * Math.exp(-(diff * diff / (2.0 * stdDev * stdDev)));
-            }
-            return val == mean ? 1.0 : 0.0;
-          }
-        return 0.0;
-        }
 	
         @Override
 	public double[] getVotesForInstance(Instance inst) {
 		return doNaiveBayesPrediction(inst);
 	}
         
-     
+        public double getErrorEstimation() {
+            if (this.AdwinErr != null) {
+                return this.AdwinErr.getEstimation();
+            } else {
+                return 0.0;
+            }
+        }
+        
+        
+
 	@Override
 	protected Measurement[] getModelMeasurementsImpl() {
 		return null;
@@ -213,17 +205,10 @@ public  class Version2 extends AbstractClassifier implements MultiClassClassifie
                                                     /this.attributeObserversSum[attIndex][classIndex];
                             }
                             else {
-                                 String valMean = Integer.toString(attIndex) + Double.toString(inst.classValue()) + "mean";
-                                 String valVar = Integer.toString(attIndex) + Double.toString(inst.classValue()) + "var";
-                                 
-                                  double lmean = this.cmsketch.getEstimatedCount(valMean);
-                                  double lvar = this.cmsketch.getEstimatedCount(valVar);
-                                  GaussianEstimator1 estim = new GaussianEstimator1();
-                                  estim.addObservation(inst.value(attIndex), inst.weight(), this.observedClassSum, lmean, lvar);           
-                                 votes[classIndex] *= estim.probabilityDensity(inst.value(attIndex), this.observedClassSum);
-                            //     System.out.println("probability for class " + classIndex);
-                             //    System.out.println(votes[classIndex]);
-                                                   
+                                 AttributeClassObserver obs = attributeObservers.get(attIndex);
+                                 if ((obs != null) && !inst.isMissing(attIndex)) 
+                                     
+                                 votes[classIndex] *= obs.probabilityOfAttributeValueGivenClass(inst.value(attIndex), classIndex);
                             }
                         }
                 }
@@ -238,25 +223,4 @@ public  class Version2 extends AbstractClassifier implements MultiClassClassifie
 	}
 
 }
-
-/*
-String countM = Integer.toString(attIndex)+
-                                         Double.toString(classIndex)+ 'M';
-                                String countV  = Integer.toString(attIndex)+
-                                         Double.toString(classIndex)+ 'V';
-                                
-                                double stdDev = Math.sqrt(this.cmsketch.getEstimatedCount(countV)/this.observedClassSum-1.0);
-                                double prob = 0;
-                                if (stdDev>0.0) {
-                                    double diff = inst.value(attIndex) - this.cmsketch.getEstimatedCount(countM);
-                                    prob = 1.0/(Math.sqrt(2*Math.PI)*stdDev)
-                                          *Math.exp(-(diff*diff/2*stdDev*stdDev)) ;
-                                }
-                                else 
-                                    if (inst.value(attIndex)==this.cmsketch.getEstimatedCount(countM)) 
-                                        prob = 1.0;
-                                    else prob = 0.0;
-                                        
-                                   
-                                votes[classIndex] *= prob;
-*/
+ 
