@@ -14,7 +14,7 @@ The implementation and related codes used in this work are the following:
 * SketchNB.java: the SketchNB that uses CMS to store synopsis from the stream.
 * AdaptiveSketchNB.java: the adaptive version of the SketchNB that uses ADWIN to adapt to changes.
 * HashingTrickFilter.java: the hashing trick filter to minimise the dimensionality of data.
-* HashingTrickFilterBinary.java: the hashing trick filter that produces a binary representation of data instead of a numerical representation.
+* HashingTrickFilterBinary.java: the hashing trick filter that produces a binary representation of data instead of a numerical one.
 
 ## How to execute it
 To test the SketchNB, you can copy and paste the following command in the interface (right click the configuration text edit and select "Enter configuration”).
