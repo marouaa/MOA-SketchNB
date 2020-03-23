@@ -5,52 +5,130 @@
  */
 
 
-package moa.classifiers.bayes.CMNaiveBayes;
- 
+package CountMinSketch1;
+/*package com.clearspring.analytics.stream.frequency;
+*/
+/**
+ *   Copyright 2014 Prasanth Jayachandran
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-import moa.classifiers.bayes.*;
+
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
-public class CountMinSketch {
+/**
+ * Count Min sketch is a probabilistic data structure for finding the frequency of events in a
+ * stream of data. The data structure accepts two parameters epsilon and delta, epsilon specifies
+ * the error in estimation and delta specifies the probability that the estimation is wrong (or the
+ * confidence interval). The default values are 1% estimation error (epsilon) and 99% confidence
+ * (1 - delta). Tuning these parameters results in increase or decrease in the size of the count
+ * min sketch. The constructor also accepts width and depth parameters. The relationship between
+ * width and epsilon (error) is width = Math.ceil(Math.exp(1.0)/epsilon). In simpler terms, the
+ * lesser the error is, the greater is the width and hence the size of count min sketch.
+ * The relationship between delta and depth is depth = Math.ceil(Math.log(1.0/delta)). In simpler
+ * terms, the more the depth of the greater is the confidence.
+ * The way it works is, if we need to estimate the number of times a certain key is inserted (or appeared in
+ * the stream), count min sketch uses pairwise independent hash functions to map the key to
+ * different locations in count min sketch and increment the counter.
+ * <p/>
+ * For example, if width = 10 and depth = 4, lets assume the hashcodes
+ * for key "HELLO" using pairwise independent hash functions are 9812121, 6565512, 21312312, 8787008
+ * respectively. Then the counter in hashcode % width locations are incremented.
+ * <p/>
+ * 0   1   2   3   4   5   6   7   8   9
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * <p/>
+ * Now for a different key "WORLD", let the hashcodes be 23123123, 45354352, 8567453, 12312312.
+ * As we can see below there is a collision for 2nd hashcode
+ * <p/>
+ * 0   1   2   3   4   5   6   7   8   9
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * --- --- --- --- --- --- --- --- --- ---
+ * | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+ * --- --- --- --- --- --- --- --- --- ---
+ * <p/>
+ * Now, to get the estimated count for key "HELLO", same process is repeated again to find the
+ * values in each position and the estimated count will be the minimum of all values (to account for
+ * hash collisions).
+ * <p/>
+ * estimatedCount("HELLO") = min(1, 2, 1, 1)
+ * <p/>
+ * so even if there are multiple hash collisions, the returned value will be the best estimate
+ * (upper bound) for the given key. The actual count can never be greater than this value.
+ */
+public class CountMinSketch1 {
   // 1% estimation error with 1% probability (99% confidence) that the estimation breaks this limit
-  private static final float DEFAULT_DELTA = 0.1f;
-  private static final float DEFAULT_EPSILON = 0.01f;
+  private static final double DEFAULT_DELTA = 0.1;
+  private static final double DEFAULT_EPSILON = 0.01;
   private final int w;
   private final int d;
+  private double eps;
   private final int[][] multiset;
 
-  public CountMinSketch() {
+  public CountMinSketch1() {
     this(DEFAULT_DELTA, DEFAULT_EPSILON);
- 
+  
   }
 
-  public CountMinSketch(float delta, float epsilon) {
+  public CountMinSketch1(double delta, double epsilon) {
     this.w = (int) Math.ceil(Math.exp(1.0) / epsilon);
     this.d = (int) Math.ceil(Math.log(1.0 / delta));
-   // System.out.println(w);
-   // System.out.println(d);
     this.multiset = new int[d][w];
-   
-   /* for (int i = 1; i <= d; i++) {
+     for (int i = 1; i <= d; i++) {
         for(int j=1;j<=w;j++){
             multiset[i - 1][j-1] = 1;
         }
-    }*/ //smoothing
+    }
 
   }
 
-  public CountMinSketch(int width, int depth) {
+  public CountMinSketch1(int width, int depth) {
     this.w = width;
     this.d = depth;
     this.multiset = new int[d][w];
+    this.eps = (double)Math.exp(1.0)/width;
+     
   }
 
-  private CountMinSketch(int width, int depth, int[][] ms) {
+  private CountMinSketch1(int width, int depth, int[][] ms) {
     this.w = width;
     this.d = depth;
     this.multiset = ms;
-  
+     for (int i = 1; i <= d; i++) {
+        for(int j=1;j<=w;j++){
+            multiset[i - 1][j-1] = 1;
+        }
+    }
   }
 
   public int getWidth() {
@@ -60,6 +138,11 @@ public class CountMinSketch {
   public int getDepth() {
     return d;
   }
+  
+   public double getEpsilon() {
+    return eps;
+  }
+  
    public int [][] getMultiset() {
     return multiset;
   }
@@ -186,11 +269,11 @@ public class CountMinSketch {
 
   /**
    * Merge the give count min sketch with current one. Merge will throw RuntimeException if the
- provided CountMinSketch is not compatible with current one.
+ provided CountMinSketch1 is not compatible with current one.
    *
    * @param that - the one to be merged
    */
-  public void merge(CountMinSketch that) {
+  public void merge(CountMinSketch1 that) {
     if (that == null) {
       return;
     }
@@ -218,7 +301,7 @@ public class CountMinSketch {
    *
    * @return serialized byte array
    */
-  public static byte[] serialize(CountMinSketch cms) {
+  public static byte[] serialize(CountMinSketch1 cms) {
     long serializedSize = cms.getSizeInBytes();
     ByteBuffer bb = ByteBuffer.allocate((int) serializedSize);
     bb.putInt(cms.getWidth());
@@ -238,7 +321,7 @@ public class CountMinSketch {
    * @param serialized - serialized count min sketch
    * @return deserialized count min sketch object
    */
-  public static CountMinSketch deserialize(byte[] serialized) {
+  public static CountMinSketch1 deserialize(byte[] serialized) {
     ByteBuffer bb = ByteBuffer.allocate(serialized.length);
     bb.put(serialized);
     bb.flip();
@@ -250,7 +333,7 @@ public class CountMinSketch {
         multiset[i][j] = bb.getInt();
       }
     }
-    CountMinSketch cms = new CountMinSketch(width, depth, multiset);
+    CountMinSketch1 cms = new CountMinSketch1(width, depth, multiset);
     return cms;
   }
 }
