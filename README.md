@@ -22,7 +22,7 @@ Sample command:
 
 `EvaluatePrequential -l (bayes.SketchBased.SketchNB -d 0.01 -e 0.001) -s (ArffFileStream -f /pathto/tweet1000.arff) -e BasicClassificationPerformanceEvaluator`
 
-Explanation: this command executes CS-kNN prequential evaluation precising the output and input dimensionality, d and f respectively on the tweet500 dataset (-f tweet500.arff). 
+Explanation: this command executes CS-kNN prequential evaluation precising the output and input dimensionality, d and f respectively on the tweet1000 dataset (-f tweet1000.arff). 
 **Make sure to extract the tweet1000.arff dataset, and setting -f to its location (pathto), before executing the command.**
 
 ## Datasets used in the original paper
