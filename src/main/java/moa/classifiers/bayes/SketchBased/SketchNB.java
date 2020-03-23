@@ -17,7 +17,7 @@
  *    along with this program. If not, see <http://www.gnu.org/licenses/>.
  *    
  */
-package moa.classifiers.bayes.TestCMS1;
+package moa.classifiers.bayes.SketchBased;
 
 import CountMinSketch1.*;
 import com.github.javacliparser.FloatOption;
